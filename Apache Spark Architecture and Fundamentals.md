@@ -74,7 +74,7 @@ Streaming is therefore not simply “one huge batch.” It is a long-running que
 
 ## Cluster architecture
 
-Think of a Spark application as a coordinator assigning pieces of work to a team. The **driver** plans and coordinates the work, the **cluster manager** provides resources, and **executors** process data partitions in parallel on worker nodes.
+When a Spark application starts, its **driver** creates the `SparkSession` and plans the work as jobs, stages, and tasks. The **cluster manager** allocates resources, allowing **executors** on worker nodes to process data partitions in parallel. Executors report task results and status back to the driver, which coordinates the application through completion.
 
 ```text
  User application
