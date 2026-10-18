@@ -1,7 +1,5 @@
 # Apache Spark: Architecture and Fundamentals
 
-These notes explain the Spark concepts listed alongside the video [Apache Spark - The Ultimate Guide (From ZERO To PRO)](https://www.youtube.com/watch?v=FNJze2Ea780). They are a companion study guide, not a word-for-word transcript. The architecture details are checked against the [official Spark cluster overview](https://spark.apache.org/docs/latest/cluster-overview.html).
-
 ## Why Apache Spark?
 
 Apache Spark is an engine for processing large datasets in parallel. Instead of doing all the work on one machine, Spark can divide data and computation across multiple machines in a cluster. It provides APIs for Python (PySpark), Scala, Java, and R, and supports batch processing, SQL, streaming, machine learning, and graph workloads.
@@ -76,87 +74,83 @@ Streaming is therefore not simply “one huge batch.” It is a long-running que
 
 ## Cluster architecture
 
-At a high level, a Spark application has a **driver** and one or more **executors**:
+Think of a Spark application as a coordinator assigning pieces of work to a team. The **driver** plans and coordinates the work, the **cluster manager** provides resources, and **executors** process data partitions in parallel on worker nodes.
 
 ```text
-User application / spark-submit
-             |
-             v
-   Driver process
-   - runs application logic
-   - creates SparkSession / SparkContext
-   - plans jobs and schedules tasks
-             |
-        Cluster manager
-   (allocates resources for the app)
-       /          |          \
-      v           v           v
- Executor      Executor    Executor
- on worker     on worker   on worker
-   tasks         tasks       tasks
- partitions    partitions  partitions
+ User application
+       |
+       v
+    Driver  <------>  Cluster manager
+ (plans work)        (allocates resources)
+       |
+  schedules tasks
+       v
+ Executors on worker nodes
+ (process data partitions)
 ```
 
 ### Driver, SparkSession, and SparkContext
 
-- The **driver program** runs the application's main logic, turns actions into jobs, divides jobs into stages and tasks, and coordinates execution.
-- **SparkSession** is the main entry point for modern Spark SQL/DataFrame applications. It provides access to DataFrames, SQL, and the underlying Spark context.
-- **SparkContext** is the lower-level connection to Spark's execution environment and cluster. A SparkSession typically manages or exposes it.
+The **driver** is the application's control center: it runs the main program, plans jobs, breaks them into stages and tasks, and tells executors what to do.
 
-The driver must be able to communicate with executors over the network for the application's lifetime. In **client deploy mode**, the driver runs in the submitting process/environment. In **cluster deploy mode**, the cluster manager launches the driver inside the cluster.
+- **SparkSession** is the entry point used by most modern Spark applications. It lets your program work with DataFrames and SQL.
+- **SparkContext** connects the driver to Spark's execution environment and cluster. A SparkSession typically manages or exposes it.
+
+In short, your code describes the work through the SparkSession; the driver uses the SparkContext to coordinate that work. The driver must be able to communicate with executors throughout the application. In **client mode**, it runs in the submitting process or environment; in **cluster mode**, the cluster manager launches it inside the cluster.
 
 ### Cluster manager, master, and resource manager
 
-The **cluster manager** allocates resources for Spark applications. Spark supports its **Standalone** manager, **Hadoop YARN**, and **Kubernetes**.
+The **cluster manager** decides where application processes can run and allocates CPU and memory. It is like a resource coordinator: it provides places for Spark's driver or executors to run, while Spark itself plans and executes the data-processing work.
 
-“Master/worker” is a useful diagram for **Spark Standalone**: the Standalone master coordinates workers, and workers provide resources to run application executors. Do not assume that every deployment has a Spark master daemon:
+Spark supports **Standalone**, **Hadoop YARN**, and **Kubernetes**:
 
-- On **YARN**, YARN's ResourceManager and NodeManagers manage cluster resources.
-- On **Kubernetes**, Kubernetes schedules pods and manages cluster resources.
-- In each case, Spark still has a driver and application executors.
+- In **Spark Standalone**, the **master** coordinates the cluster and **worker** services provide resources on machines.
+- With **YARN**, the **ResourceManager** and **NodeManagers** manage cluster resources.
+- With **Kubernetes**, Kubernetes schedules and manages containers (pods).
 
-The cluster manager allocates resources; it does not normally execute the user's Spark transformations itself.
+The driver and executors are Spark application roles; master/worker, ResourceManager/NodeManager, and Kubernetes pods describe how different cluster managers provide resources.
 
 ### Executors, JVMs, and tasks
 
-An **executor** is an application-specific process on a worker node. It runs tasks and can keep data in memory or on disk for that application. Each Spark application gets its own executors; different applications do not directly share executor memory.
+An **executor** is a process for one Spark application, running on a worker node. It performs assigned **tasks**—usually processing individual data partitions—and can keep that application's data in memory or on disk for reuse. More executors and partitions can allow more parallel work, subject to available resources.
 
-Spark's execution engine is JVM-based. In a typical JVM-language application, the driver and executors run in JVM processes. A worker node may also run a cluster-manager service (for example, a Standalone Worker or YARN NodeManager); this service is distinct from the executor JVM launched for a particular application.
+Spark's core execution engine runs on the **Java Virtual Machine (JVM)**. Executors are JVM processes, and a worker machine may also run a separate cluster-manager service. Each application has its own executors, so different Spark applications do not directly share executor memory.
 
 ### Where the YARN ApplicationMaster and containers fit
 
-**ApplicationMaster (AM)** and **container** are YARN terms, not names for universal Spark components:
+**ApplicationMaster (AM)** and **container** are specifically YARN concepts, not universal Spark components:
 
-- YARN's ResourceManager allocates resources, while NodeManagers manage containers on individual nodes.
-- An application gets an ApplicationMaster to coordinate its YARN application resources.
+- YARN's ResourceManager allocates resources; NodeManagers manage containers on individual machines.
+- The ApplicationMaster coordinates resource requests for a YARN application.
 - In YARN **cluster mode**, the Spark driver runs inside the ApplicationMaster container.
-- In YARN **client mode**, the driver stays in the client process; the ApplicationMaster requests resources for the executors.
-- Executors run in YARN containers allocated on worker nodes.
+- In YARN **client mode**, the driver stays in the client process, while the ApplicationMaster requests resources for executors.
+- Executors run in containers allocated on worker nodes.
 
-For Standalone or Kubernetes, use that manager's own resource and deployment terminology instead of describing it as a YARN ApplicationMaster/container setup.
+So, when a diagram shows an ApplicationMaster and containers, it is describing Spark running on YARN. Standalone and Kubernetes have their own resource-management terminology.
 
 ## What happens in a PySpark application?
 
-PySpark lets Python code use Spark's APIs. In the standard PySpark setup:
+PySpark lets you write a Spark application in Python while Spark's core engine runs on the JVM. The **Py4J** bridge carries communication between the Python driver and Spark's JVM-side driver.
 
-1. You start a Python application (for example, `main.py`) with `spark-submit`.
-2. The Python driver process creates a `SparkSession`.
-3. PySpark uses **Py4J** as a bridge between the Python process and Spark's JVM-side driver. The JVM hosts Spark's core scheduling and execution components.
-4. The driver requests resources from the cluster manager, plans work, and schedules tasks on executors.
-5. JVM executors run Spark's core tasks. When Python code must run on executors (for example, Python RDD functions or Python UDFs), Spark can launch Python worker processes alongside the executor JVMs.
+1. `spark-submit` starts your Python application (for example, `main.py`).
+2. The Python driver creates a `SparkSession` and describes the computation.
+3. Through Py4J, the driver communicates with Spark's JVM, which plans jobs and coordinates execution.
+4. The cluster manager provides resources, and JVM executors run tasks on partitions across worker nodes.
+5. If a task needs to execute Python code, such as a Python function or UDF, an executor can start a Python worker process to run it.
 
 ```text
-Python main.py (driver)  <--- Py4J --->  JVM driver (Spark)
-                                      |
-                               cluster manager
-                                      |
-               +----------------------+----------------------+
-               v                                             v
-        Executor JVM                                  Executor JVM
-        + Python worker(s), if needed                 + Python worker(s), if needed
+ Python application / driver
+             |
+           Py4J
+             v
+       JVM driver (Spark)
+             |
+       JVM executors on workers
+       (Python workers as needed)
 ```
 
-Py4J does not mean that all Spark work executes in Python. Many DataFrame operations use Spark's JVM execution engine; Python worker processes are needed for Python-defined computation that must run on the executors. The exact process layout depends on deployment mode and cluster manager.
+Py4J does not mean all work runs in Python: many DataFrame operations execute in Spark's JVM engine, while Python workers are used for Python-defined operations that need to run on executors.
+
 
 ## Terms at a glance
 
@@ -171,11 +165,3 @@ Py4J does not mean that all Spark work executes in Python. Many DataFrame operat
 | Stage | A set of tasks separated from other stages by dependency boundaries, often including shuffle boundaries. |
 | Task | A unit of work sent to an executor, usually for one partition. |
 | Partition | A portion of a distributed dataset that can be processed as a unit of parallel work. |
-
-## References
-
-- Video: [Apache Spark - The Ultimate Guide (From ZERO To PRO)](https://www.youtube.com/watch?v=FNJze2Ea780)
-- Official docs: [Cluster Mode Overview](https://spark.apache.org/docs/latest/cluster-overview.html)
-- Official docs: [RDD Programming Guide](https://spark.apache.org/docs/latest/rdd-programming-guide.html)
-- Official docs: [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/streaming/index.html)
-- Official docs: [Submitting Applications](https://spark.apache.org/docs/latest/submitting-applications.html)
