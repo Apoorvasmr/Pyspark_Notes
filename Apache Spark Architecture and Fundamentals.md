@@ -1,4 +1,4 @@
-# Apache Spark: Architecture and Fundamentals
+# Chapter 1: Apache Spark Architecture and Fundamentals
 
 ## Why Apache Spark?
 
