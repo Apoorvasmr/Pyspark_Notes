@@ -1,5 +1,26 @@
 # Chapter 1: Apache Spark Architecture and Fundamentals
 
+## What is Apache Spark? / Why Apache Spark? What problem does it solve?
+Apache Spark is a unified computing engine and a set of libraries for parallel data processing on a computer cluster.
+
+## Meaning of "Unified"
+Spark is designed to support a wide range of workloads over the same computing engine. For example, Data Scientists, Data Analysts, and Data Engineers can all use the same platform for their data transformations or modeling.
+
+## Computing Engine vs. Storage
+Spark is limited to a computing engine; it does not store the data. Spark can connect with different data sources like HDFS, JDBC/ODBC, Azure storage, etc. Spark works with almost all data storage systems.
+
+## What are Libraries?
+Pre-built, standard packages provided by Spark to support common data tasks without having to write low-level code from scratch.
+
+## What is Parallel Data Processing?
+Breaking down large datasets into smaller chunks (partitions) and processing them simultaneously across multiple compute cores/nodes. Instead of running tasks sequentially on a single machine, operations are distributed so execution time is drastically reduced.
+
+## What is a Computer Cluster?
+A collection of interconnected independent computers (nodes) that work together as a single unified computing system.
+  • Driver Node: Coordinates tasks, maintains the Spark session, and plans job execution.
+  • Worker / Executor Nodes: Carry out actual computations and store cached data in memory or disk.
+  • Cluster Manager (e.g., YARN, Kubernetes, Mesos, or Standalone): Allocates and manages resources across the cluster.
+
 ## Why Apache Spark?
 
 Apache Spark is an engine for processing large datasets in parallel. Instead of doing all the work on one machine, Spark can divide data and computation across multiple machines in a cluster. It provides APIs for Python (PySpark), Scala, Java, and R, and supports batch processing, SQL, streaming, machine learning, and graph workloads.
